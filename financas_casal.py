@@ -34,9 +34,10 @@ USERS = {
 if "logged" not in st.session_state:
     st.session_state.logged = False
 
+
 def login():
     st.markdown("<h1 style='text-align:center;'>💰 Finanças do Casal</h1>", unsafe_allow_html=True)
-    col1, col2, col3 = st.columns([1,2,1])
+    col1, col2, col3 = st.columns([1, 2, 1])
 
     with col2:
         user = st.text_input("Usuário")
@@ -49,36 +50,61 @@ def login():
             else:
                 st.error("Usuário ou senha inválidos")
 
+
 # ---------------- EXPORTAÇÃO ----------------
 def export_excel(df):
     output = BytesIO()
     df.to_excel(output, index=False)
     return output.getvalue()
 
+
 def export_pdf(df):
     buffer = BytesIO()
     doc = SimpleDocTemplate(buffer)
     styles = getSampleStyleSheet()
-    elements = [Paragraph("Relatório de Despesas", styles["Title"])]
+    elements = [Paragraph("Relatório de Despesas", styles["Title"]) ]
 
     data_table = [df.columns.tolist()] + df.astype(str).values.tolist()
     table = Table(data_table)
     table.setStyle(TableStyle([
-        ("BACKGROUND", (0,0), (-1,0), colors.grey),
-        ("TEXTCOLOR", (0,0), (-1,0), colors.whitesmoke),
-        ("GRID", (0,0), (-1,-1), 0.5, colors.black),
+        ("BACKGROUND", (0, 0), (-1, 0), colors.grey),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.black),
     ]))
 
     elements.append(table)
     doc.build(elements)
     return buffer.getvalue()
 
+
 # ---------------- APP PRINCIPAL ----------------
+
 def app():
     st.title("📊 Controle Financeiro")
 
     df = pd.read_sql("SELECT * FROM despesas", conn)
 
+    # converter data
+    if not df.empty:
+        df["data"] = pd.to_datetime(df["data"])
+        df["mes"] = df["data"].dt.to_period("M").astype(str)
+
+    # ---------------- FILTRO POR MÊS ----------------
+    st.subheader("📅 Filtro por mês")
+
+    if not df.empty:
+        meses = sorted(df["mes"].unique())
+        mes_selecionado = st.selectbox("Selecione o mês", ["Todos"] + meses)
+
+        if mes_selecionado != "Todos":
+            df_filtrado = df[df["mes"] == mes_selecionado].copy()
+        else:
+            df_filtrado = df.copy()
+    else:
+        mes_selecionado = "Todos"
+        df_filtrado = df.copy()
+
+    # ---------------- NOVA DESPESA ----------------
     st.subheader("➕ Nova Despesa")
     with st.form("form"):
         col1, col2, col3, col4, col5 = st.columns(5)
@@ -90,19 +116,22 @@ def app():
         pago = col5.checkbox("Pago")
 
         if st.form_submit_button("Salvar"):
-            c.execute("INSERT INTO despesas (descricao, parcelas, valor, data, pago) VALUES (?, ?, ?, ?, ?)",
-                      (desc, parcelas, valor, data.strftime("%Y-%m-%d"), int(pago)))
+            c.execute(
+                "INSERT INTO despesas (descricao, parcelas, valor, data, pago) VALUES (?, ?, ?, ?, ?)",
+                (desc, parcelas, valor, data.strftime("%Y-%m-%d"), int(pago)),
+            )
             conn.commit()
             st.success("Despesa salva!")
             st.rerun()
 
-    if not df.empty:
-        df["Pago"] = df["pago"].astype(bool)
-        df_view = df[["descricao", "parcelas", "valor", "data", "Pago"]]
+    # ---------------- DASHBOARD ----------------
+    if not df_filtrado.empty:
+        df_filtrado["Pago"] = df_filtrado["pago"].astype(bool)
+        df_view = df_filtrado[["descricao", "parcelas", "valor", "data", "Pago"]]
         df_view.columns = ["Descrição", "Parcelas", "Valor", "Data", "Pago"]
 
-        total = df["valor"].sum()
-        pago_total = df[df["pago"] == 1]["valor"].sum()
+        total = df_filtrado["valor"].sum()
+        pago_total = df_filtrado[df_filtrado["pago"] == 1]["valor"].sum()
         a_vencer = total - pago_total
 
         col1, col2, col3 = st.columns(3)
@@ -112,9 +141,31 @@ def app():
 
         st.dataframe(df_view, use_container_width=True)
 
+        # ---------------- GRÁFICOS ----------------
+        st.subheader("📊 Gráficos")
+
+        colg1, colg2 = st.columns(2)
+
+        # gráfico por status
+        status_df = pd.DataFrame({
+            "Status": ["Pago", "A vencer"],
+            "Valor": [pago_total, a_vencer],
+        })
+
+        colg1.bar_chart(status_df.set_index("Status"))
+
+        # gráfico por mês (geral)
+        if not df.empty:
+            mensal = df.groupby("mes")["valor"].sum().sort_index()
+            colg2.line_chart(mensal)
+
+        # ---------------- EXPORTAÇÃO ----------------
         col1, col2 = st.columns(2)
         col1.download_button("Baixar Excel", export_excel(df_view), "despesas.xlsx")
         col2.download_button("Baixar PDF", export_pdf(df_view), "despesas.pdf")
+    else:
+        st.info("Nenhuma despesa cadastrada ainda.")
+
 
 if not st.session_state.logged:
     login()
