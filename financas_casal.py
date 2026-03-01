@@ -2,18 +2,25 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime, date
 from dateutil.relativedelta import relativedelta
+from supabase import create_client
+import plotly.express as px
+import io
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib import colors
-import io
-from supabase import create_client
-import plotly.express as px
 
 # =========================
-# CONFIG
+# CONFIGURAÇÃO DE PÁGINA
 # =========================
-st.set_page_config(page_title="💑 Finanças Casal JR & VIC", layout="wide")
+st.set_page_config(
+    page_title="💜 Finanças Casal JR & VIC",
+    layout="wide",
+    page_icon="💜"
+)
 
+# =========================
+# USUÁRIOS
+# =========================
 USERS = {
     "junior": "9391",
     "victoria": "1612"
@@ -34,19 +41,17 @@ if "logged" not in st.session_state:
     st.session_state.logged = False
 
 def login_screen():
-    col1, col2, col3 = st.columns([1,1,1])
-    with col2:
-        st.markdown("## 💑 Finanças Casal JR & VIC")
+    st.markdown("<h1 style='text-align: center; color: purple;'>💜 Finanças Casal JR & VIC</h1>", unsafe_allow_html=True)
+    st.write("")
+    user = st.text_input("Usuário")
+    pwd = st.text_input("Senha", type="password")
 
-        user = st.text_input("Usuário")
-        pwd = st.text_input("Senha", type="password")
-
-        if st.button("Entrar"):
-            if USERS.get(user.lower()) == pwd:
-                st.session_state.logged = True
-                st.experimental_rerun()
-            else:
-                st.error("Usuário ou senha inválidos")
+    if st.button("Entrar", use_container_width=True):
+        if USERS.get(user.lower()) == pwd:
+            st.session_state.logged = True
+            st.experimental_rerun()
+        else:
+            st.error("Usuário ou senha inválidos")
 
 if not st.session_state.logged:
     login_screen()
@@ -95,21 +100,15 @@ def excluir(id):
     supabase.table("expenses").delete().eq("id", id).execute()
 
 # =========================
-# HEADER
-# =========================
-st.title("💑 Finanças Casal JR & VIC")
-
-# =========================
-# NOVA COMPRA COM CATEGORIA
+# NOVA COMPRA
 # =========================
 st.subheader("➕ Nova Compra")
-
 c1, c2, c3, c4 = st.columns(4)
 
 descricao = c1.text_input("Descrição")
-valor_total = c2.number_input("Valor total da compra", min_value=0.0, format="%.2f")
+valor_total = c2.number_input("Valor total", min_value=0.0, format="%.2f")
 parcelas = c3.number_input("Parcelas", min_value=1, max_value=24, step=1)
-categoria = c4.text_input("Categoria (ex: Alimentação, Lazer, Contas)")
+categoria = c4.text_input("Categoria")
 
 data_compra = st.date_input("Mês da compra", value=date.today())
 
@@ -120,21 +119,19 @@ if st.button("Salvar compra", use_container_width=True):
         st.experimental_rerun()
 
 # =========================
-# FILTRO AVANÇADO
+# CARREGAR DADOS E FILTROS
 # =========================
-st.subheader("📅 Filtros avançados")
-
 df = carregar_dados()
-
-anos = df["data_vencimento"].dt.year.sort_values().unique().tolist() if not df.empty else []
-anos_sel = st.multiselect("Ano", anos, default=anos)
-
-categorias = df["categoria"].unique().tolist() if not df.empty else []
-categorias_sel = st.multiselect("Categoria", categorias, default=categorias)
 
 if df.empty:
     st.info("Nenhum registro encontrado")
     st.stop()
+
+anos = df["data_vencimento"].dt.year.sort_values().unique().tolist()
+anos_sel = st.multiselect("Ano", anos, default=anos)
+
+categorias = df["categoria"].unique().tolist()
+categorias_sel = st.multiselect("Categoria", categorias, default=categorias)
 
 df_filtrado = df[
     df["data_vencimento"].dt.year.isin(anos_sel) &
@@ -142,63 +139,67 @@ df_filtrado = df[
 ]
 
 # =========================
-# KPIs
+# KPIs ESTILO NUBANK
 # =========================
-total = df_filtrado["valor_parcela"].sum() if not df_filtrado.empty else 0
-pago = df_filtrado[df_filtrado["pago"] == True]["valor_parcela"].sum() if not df_filtrado.empty else 0
+total = df_filtrado["valor_parcela"].sum()
+pago = df_filtrado[df_filtrado["pago"] == True]["valor_parcela"].sum()
 restante = total - pago
 
+st.markdown("### 💜 Resumo Financeiro")
 k1, k2, k3 = st.columns(3)
 k1.metric("💰 Total", f"R$ {total:,.2f}")
 k2.metric("✅ Pago", f"R$ {pago:,.2f}")
 k3.metric("⏳ Restante", f"R$ {restante:,.2f}")
 
 # =========================
-# GRÁFICOS DE BARRAS
+# GRÁFICOS
 # =========================
-st.subheader("📊 Despesas por categoria / mês")
+st.markdown("### 📊 Despesas por Categoria / Mês")
+df_filtrado["mes"] = df_filtrado["data_vencimento"].dt.to_period("M")
+grafico_mes = df_filtrado.groupby(["mes", "categoria"])["valor_parcela"].sum().reset_index()
+fig_mes = px.bar(
+    grafico_mes,
+    x="mes",
+    y="valor_parcela",
+    color="categoria",
+    title="Despesas por categoria / mês",
+    labels={"mes":"Mês", "valor_parcela":"Valor (R$)", "categoria":"Categoria"},
+    text_auto=True,
+    template="plotly_white"
+)
+st.plotly_chart(fig_mes, use_container_width=True)
 
-if not df_filtrado.empty:
-    df_filtrado["mes"] = df_filtrado["data_vencimento"].dt.to_period("M")
-    grafico = df_filtrado.groupby(["mes", "categoria"])["valor_parcela"].sum().reset_index()
-    fig = px.bar(
-        grafico,
-        x="mes",
-        y="valor_parcela",
-        color="categoria",
-        title="Despesas por categoria / mês",
-        labels={"mes":"Mês", "valor_parcela":"Valor (R$)", "categoria":"Categoria"}
-    )
-    st.plotly_chart(fig, use_container_width=True)
-
-# =========================
-# RESUMO ANUAL
-# =========================
-st.subheader("📈 Resumo anual")
-
+st.markdown("### 📈 Resumo Anual")
 df_anual = df_filtrado.groupby([df_filtrado["data_vencimento"].dt.year, "categoria"])["valor_parcela"].sum().reset_index()
 df_anual.rename(columns={"data_vencimento":"Ano", "valor_parcela":"Total"}, inplace=True)
-
-st.dataframe(df_anual)
-
 fig_anual = px.bar(
     df_anual,
     x="Ano",
     y="Total",
     color="categoria",
     title="Resumo anual de despesas por categoria",
-    labels={"Ano":"Ano", "Total":"Valor (R$)", "categoria":"Categoria"}
+    text_auto=True,
+    template="plotly_white"
 )
 st.plotly_chart(fig_anual, use_container_width=True)
+
+st.markdown("### 📊 Distribuição de Gastos por Categoria")
+df_pizza = df_filtrado.groupby("categoria")["valor_parcela"].sum().reset_index()
+fig_pizza = px.pie(
+    df_pizza,
+    names="categoria",
+    values="valor_parcela",
+    title="Percentual de Gastos por Categoria",
+    hole=0.4
+)
+st.plotly_chart(fig_pizza, use_container_width=True)
 
 # =========================
 # TABELA DETALHADA
 # =========================
 st.subheader("📋 Despesas detalhadas")
-
 for _, row in df_filtrado.iterrows():
     c1, c2, c3, c4, c5 = st.columns([3,1,1,1,1])
-
     c1.write(f"{row['descricao']} ({row['categoria']})")
     c2.write(f"{int(row['parcela_atual'])}ª de {int(row['total_parcelas'])}x")
     c3.write(f"R$ {row['valor_parcela']:,.2f}")
@@ -217,22 +218,18 @@ for _, row in df_filtrado.iterrows():
         st.experimental_rerun()
 
 # =========================
-# PDF
+# PDF ESTILIZADO
 # =========================
 st.divider()
-
 def gerar_pdf(df_pdf):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer)
     styles = getSampleStyleSheet()
-
     elements = []
-    elements.append(Paragraph("Finanças Casal JR & VIC", styles["Title"]))
+    elements.append(Paragraph("💜 Finanças Casal JR & VIC", styles["Title"]))
     elements.append(Paragraph(f"Gerado em: {datetime.now()}", styles["Normal"]))
     elements.append(Spacer(1, 12))
-
     tabela = [["Descrição", "Categoria", "Parcela", "Valor", "Pago"]]
-
     for _, r in df_pdf.iterrows():
         tabela.append([
             r["descricao"],
@@ -241,7 +238,6 @@ def gerar_pdf(df_pdf):
             f"R$ {r['valor_parcela']:,.2f}",
             "Sim" if r["pago"] else "Não"
         ])
-
     table = Table(tabela)
     table.setStyle(TableStyle([
         ("BACKGROUND", (0,0), (-1,0), colors.purple),
@@ -249,16 +245,14 @@ def gerar_pdf(df_pdf):
         ("ALIGN",(0,0),(-1,-1),"CENTER"),
         ("GRID",(0,0),(-1,-1),0.25,colors.black),
     ]))
-
     elements.append(table)
     doc.build(elements)
-
     buffer.seek(0)
     return buffer
 
 pdf_file = gerar_pdf(df_filtrado)
 st.download_button(
-    "📥 Baixar relatório (PDF)",
+    "📥 Baixar relatório completo (PDF)",
     pdf_file,
     file_name=f"financas_{datetime.now().strftime('%Y%m%d')}.pdf",
     mime="application/pdf",
