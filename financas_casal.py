@@ -55,25 +55,82 @@ if "logged" not in st.session_state:
 if "user" not in st.session_state:
     st.session_state.user = None
 
-# ================= LOGIN =================
+# ================= LOGIN PREMIUM =================
 def login():
-    st.markdown('<div class="big-title">💑 Finanças Casal JR & VIC</div>', unsafe_allow_html=True)
-    with st.form("login_form"):
-        u = st.text_input("Usuário").lower()
-        p = st.text_input("Senha", type="password")
-        ok = st.form_submit_button("Entrar")
 
-        if ok:
-            if u in USERS and USERS[u] == p:
+    # CSS centralizador real
+    st.markdown("""
+    <style>
+    .login-container {
+        height: 80vh;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+    .login-box {
+        width: 380px;
+        padding: 40px;
+        border-radius: 20px;
+        background: rgba(20,20,30,0.85);
+        backdrop-filter: blur(12px);
+        box-shadow: 0 10px 40px rgba(0,0,0,0.4);
+    }
+    .login-title {
+        text-align: center;
+        font-size: 32px;
+        font-weight: 800;
+        margin-bottom: 25px;
+        background: linear-gradient(90deg,#8a2be2,#00c6ff);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    st.markdown('<div class="login-container">', unsafe_allow_html=True)
+    st.markdown('<div class="login-box">', unsafe_allow_html=True)
+    st.markdown('<div class="login-title">💑 Finanças Casal</div>', unsafe_allow_html=True)
+
+    # 🔥 FORM (enter funciona)
+    with st.form("login_form", clear_on_submit=False):
+
+        user = st.text_input("Usuário", key="login_user")
+        pwd = st.text_input("Senha", type="password", key="login_pwd")
+
+        submitted = st.form_submit_button("Entrar")
+
+        if submitted:
+            u = user.lower().strip()
+            if u in USERS and USERS[u] == pwd:
                 st.session_state.logged = True
                 st.session_state.user = u
                 st.rerun()
             else:
-                st.error("Credenciais inválidas")
+                st.error("Usuário ou senha inválidos")
 
-if not st.session_state.logged:
-    login()
-    st.stop()
+    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # 🔥 AUTO-FOCUS + ENTER FLOW
+    st.components.v1.html(
+        """
+        <script>
+        const inputs = window.parent.document.querySelectorAll('input');
+
+        if (inputs.length >= 2) {
+            inputs[0].focus();
+
+            inputs[0].addEventListener("keydown", function(e) {
+                if (e.key === "Enter") {
+                    e.preventDefault();
+                    inputs[1].focus();
+                }
+            });
+        }
+        </script>
+        """,
+        height=0,
+    )
 
 # ================= HEADER =================
 st.markdown('<div class="big-title">💑 Finanças Casal JR & VIC</div>', unsafe_allow_html=True)
@@ -204,3 +261,4 @@ if st.button("Baixar PDF"):
         file_name=f"Relatorio_{mes}.pdf",
         mime="application/pdf"
     )
+
