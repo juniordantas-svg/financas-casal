@@ -1,5 +1,5 @@
 streamlit
 pandas
-plotly
-reportlab
+psycopg2-binary
 python-dateutil
+reportlab
