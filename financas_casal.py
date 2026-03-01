@@ -35,75 +35,89 @@ supabase = create_client(
 )
 
 # =========================
-# LOGIN MINIMALISTA
+# LOGIN MINIMALISTA FUNCIONAL
 # =========================
 if "logged" not in st.session_state:
     st.session_state.logged = False
 
 def login_screen():
     st.markdown("""
-        <style>
-        .login-container {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 80vh;
-        }
-        .login-box {
-            background-color: #f8f8f8;
-            padding: 40px 50px;
-            border-radius: 20px;
-            box-shadow: 0px 10px 30px rgba(0,0,0,0.1);
-            max-width: 350px;
-            width: 100%;
-            text-align: center;
-        }
-        .login-box h1 {
-            color: #6a0dad;
-            margin-bottom: 30px;
-            font-size: 28px;
-        }
-        .login-box input {
-            width: 90%;
-            padding: 12px;
-            margin: 10px 0;
-            border-radius: 10px;
-            border: 1px solid #ccc;
-            font-size: 16px;
-        }
-        .login-box button {
-            width: 95%;
-            padding: 12px;
-            margin-top: 15px;
-            border-radius: 10px;
-            border: none;
-            background-color: #6a0dad;
-            color: white;
-            font-size: 16px;
-            cursor: pointer;
-        }
-        .login-box button:hover {
-            background-color: #5a0099;
-        }
-        </style>
-        <div class="login-container">
-            <div class="login-box">
-                <h1>💜 Finanças Casal JR & VIC</h1>
-            </div>
+    <style>
+    /* Container centralizado verticalmente */
+    .login-container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 80vh;
+        font-family: 'Arial', sans-serif;
+    }
+
+    /* Caixa de login */
+    .login-box {
+        background-color: #ffffff;
+        padding: 30px 40px;
+        border-radius: 15px;
+        box-shadow: 0px 8px 20px rgba(0,0,0,0.15);
+        max-width: 360px;
+        width: 100%;
+        text-align: center;
+    }
+
+    /* Título estiloso */
+    .login-box h1 {
+        color: #6a0dad;
+        font-size: 26px;
+        margin-bottom: 25px;
+        font-weight: 600;
+    }
+
+    /* Inputs compactos */
+    .stTextInput>div>div>input {
+        height: 38px;
+        font-size: 16px;
+        border-radius: 8px;
+        border: 1px solid #ccc;
+        padding: 0 10px;
+    }
+
+    /* Botão estilizado */
+    div.stButton>button {
+        background-color: #6a0dad;
+        color: white;
+        width: 100%;
+        height: 40px;
+        font-size: 16px;
+        border-radius: 8px;
+        border: none;
+        margin-top: 15px;
+    }
+
+    div.stButton>button:hover {
+        background-color: #5b00b0;
+        cursor: pointer;
+    }
+    </style>
+
+    <div class="login-container">
+        <div class="login-box">
+            <h1>💜 Finanças Casal JR & VIC</h1>
         </div>
+    </div>
     """, unsafe_allow_html=True)
 
-    # Inputs separados
-    user = st.text_input("Usuário")
-    pwd = st.text_input("Senha", type="password")
-
-    if st.button("Entrar", use_container_width=True):
-        if USERS.get(user.lower()) == pwd:
-            st.session_state.logged = True
-            st.success("Login realizado com sucesso!")
-            st.stop()  # recarrega app com sessão ativa
-        else:
-            st.error("Usuário ou senha inválidos")
+    # FORMULÁRIO STREAMLIT PARA ENTER FUNCIONAR
+    with st.form(key="login_form"):
+        user = st.text_input("Usuário", placeholder="Digite seu usuário")
+        pwd = st.text_input("Senha", type="password", placeholder="Digite sua senha")
+        submit = st.form_submit_button("Entrar")
+        
+        if submit:
+            if USERS.get(user.lower()) == pwd:
+                st.session_state.logged = True
+                st.success("Login realizado com sucesso!")
+                st.stop()  # recarrega app com sessão ativa
+            else:
+                st.error("Usuário ou senha inválidos")
 
 if not st.session_state.logged:
     login_screen()
@@ -128,10 +142,9 @@ def inserir_parcelas(descricao, valor_total, parcelas, data_compra, categoria):
 
 def carregar_dados():
     res = supabase.table("expenses").select("*").order("data_vencimento").execute()
-    
-    if not res.data:
+    if hasattr(res, "error") and res.error:
+        st.error("Erro ao carregar dados")
         return pd.DataFrame()
-    
     df = pd.DataFrame(res.data)
     if not df.empty:
         df["data_vencimento"] = pd.to_datetime(df["data_vencimento"])
@@ -175,7 +188,6 @@ if st.button("Salvar compra", use_container_width=True):
 # CARREGAR DADOS E FILTROS
 # =========================
 df = carregar_dados()
-
 if df.empty:
     st.info("Nenhum registro encontrado")
     st.stop()
