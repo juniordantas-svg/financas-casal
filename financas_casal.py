@@ -1,275 +1,274 @@
 import streamlit as st
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, date
+import psycopg2
+from psycopg2.extras import RealDictCursor
 from dateutil.relativedelta import relativedelta
-import plotly.express as px
-import os
-import io
-import time
-
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib import colors
+import io
 
-# ================= CONFIG =================
+# =========================
+# CONFIG
+# =========================
 st.set_page_config(page_title="💑 Finanças Casal JR & VIC", layout="wide")
 
-USERS = {"junior": "9391", "victoria": "1612"}
-DATA_FILE = "dados_financas.csv"
-
-COLS = [
-    "ID","Usuario","Descricao","Data","Valor Parcela","Valor Total",
-    "Parcela","Total Parcelas","Pago","Data Pagamento"
-]
-
-# ================= CSS GLOBAL =================
-st.markdown("""
-<style>
-.big-title{
-text-align:center;
-font-size:42px;
-font-weight:800;
-background:linear-gradient(90deg,#8a2be2,#00c6ff);
--webkit-background-clip:text;
--webkit-text-fill-color:transparent;
+USERS = {
+    "junior": "9391",
+    "victoria": "1612"
 }
 
-.login-container{
-height:85vh;
-display:flex;
-justify-content:center;
-align-items:center;
-}
-
-.login-box{
-width:380px;
-padding:40px;
-border-radius:22px;
-background:rgba(20,20,30,0.90);
-backdrop-filter:blur(14px);
-box-shadow:0 20px 60px rgba(0,0,0,0.45);
-}
-</style>
-""", unsafe_allow_html=True)
-
-# ================= BANCO =================
-def load_data():
-    if os.path.exists(DATA_FILE):
-        df = pd.read_csv(DATA_FILE)
-        for c in COLS:
-            if c not in df.columns:
-                df[c] = None
-        return df[COLS]
-    return pd.DataFrame(columns=COLS)
-
-def save_data(df):
-    df.to_csv(DATA_FILE, index=False)
-
-df = load_data()
-
-# ================= SESSION =================
-if "logged" not in st.session_state:
-    st.session_state.logged = False
-if "user" not in st.session_state:
-    st.session_state.user = None
-if "tentativas" not in st.session_state:
-    st.session_state.tentativas = 0
-if "bloqueado_ate" not in st.session_state:
-    st.session_state.bloqueado_ate = None
-
-# ================= LOGIN PREMIUM =================
-def login():
-
-    # 🔒 bloqueio
-    if st.session_state.bloqueado_ate:
-        if datetime.now() < st.session_state.bloqueado_ate:
-            st.error("🔒 Muitas tentativas. Aguarde 30 segundos.")
-            st.stop()
-        else:
-            st.session_state.tentativas = 0
-            st.session_state.bloqueado_ate = None
-
-    st.markdown('<div class="login-container">', unsafe_allow_html=True)
-    st.markdown('<div class="login-box">', unsafe_allow_html=True)
-    st.markdown('<div class="big-title">💑 Finanças Casal</div>', unsafe_allow_html=True)
-
-    lembrar = st.checkbox("Lembrar usuário")
-
-    with st.form("login_form"):
-
-        user = st.text_input("Usuário", key="login_user")
-        pwd = st.text_input("Senha", type="password", key="login_pwd")
-
-        submitted = st.form_submit_button("Entrar")
-
-        if submitted:
-            u = user.lower().strip()
-
-            if u in USERS and USERS[u] == pwd:
-
-                # loading premium
-                with st.spinner("🔐 Entrando..."):
-                    time.sleep(1)
-
-                st.session_state.logged = True
-                st.session_state.user = u
-                st.session_state.tentativas = 0
-                st.rerun()
-
-            else:
-                st.session_state.tentativas += 1
-                st.error("Usuário ou senha inválidos")
-
-                if st.session_state.tentativas >= 3:
-                    st.session_state.bloqueado_ate = datetime.now() + pd.Timedelta(seconds=30)
-                    st.error("🔒 Acesso bloqueado por 30s")
-
-    st.markdown('</div>', unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
-
-    # 🔥 ENTER FLOW + AUTOFOCUS
-    st.components.v1.html(
-        """
-        <script>
-        const inputs = window.parent.document.querySelectorAll('input');
-        if (inputs.length >= 2){
-            inputs[0].focus();
-            inputs[0].addEventListener("keydown", function(e){
-                if(e.key==="Enter"){
-                    e.preventDefault();
-                    inputs[1].focus();
-                }
-            });
-        }
-        </script>
-        """,
-        height=0,
+# =========================
+# DB CONNECTION
+# =========================
+@st.cache_resource
+def get_conn():
+    return psycopg2.connect(
+        st.secrets["DATABASE_URL"],
+        cursor_factory=RealDictCursor,
+        sslmode="require"
     )
 
-# ================= CHAMA LOGIN =================
+def init_db():
+    conn = get_conn()
+    cur = conn.cursor()
+
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS expenses (
+        id SERIAL PRIMARY KEY,
+        descricao TEXT,
+        valor_parcela NUMERIC,
+        total_parcelas INTEGER,
+        parcela_atual INTEGER,
+        data_vencimento DATE,
+        pago BOOLEAN DEFAULT FALSE,
+        data_pagamento TIMESTAMP
+    )
+    """)
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+init_db()
+
+# =========================
+# LOGIN PREMIUM
+# =========================
+if "logged" not in st.session_state:
+    st.session_state.logged = False
+
+def login_screen():
+    st.markdown("""
+    <style>
+    .center-box{
+        display:flex;
+        justify-content:center;
+        align-items:center;
+        height:80vh;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    col1, col2, col3 = st.columns([1,1,1])
+    with col2:
+        st.markdown("## 💑 Finanças Casal JR & VIC")
+
+        user = st.text_input("Usuário", key="user", placeholder="Digite e pressione Enter")
+        pwd = st.text_input("Senha", type="password", key="pwd", placeholder="Pressione Enter para entrar")
+
+        if user and pwd:
+            if USERS.get(user.lower()) == pwd:
+                st.session_state.logged = True
+                st.rerun()
+            else:
+                st.error("Usuário ou senha inválidos")
+
 if not st.session_state.logged:
-    login()
+    login_screen()
     st.stop()
 
-# ================= HEADER =================
-st.markdown('<div class="big-title">💑 Finanças Casal JR & VIC</div>', unsafe_allow_html=True)
+# =========================
+# FUNÇÕES DB
+# =========================
+def inserir_parcelas(descricao, valor_total, parcelas, data_compra):
+    conn = get_conn()
+    cur = conn.cursor()
 
-df_user = df[df["Usuario"] == st.session_state.user]
+    valor_parcela = round(valor_total / parcelas, 2)
 
-# ================= NOVA COMPRA =================
+    for i in range(parcelas):
+        venc = data_compra + relativedelta(months=i)
+        cur.execute("""
+            INSERT INTO expenses
+            (descricao, valor_parcela, total_parcelas, parcela_atual, data_vencimento)
+            VALUES (%s,%s,%s,%s,%s)
+        """, (descricao, valor_parcela, parcelas, i+1, venc))
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+def carregar_dados():
+    conn = get_conn()
+    df = pd.read_sql("SELECT * FROM expenses ORDER BY data_vencimento", conn)
+    conn.close()
+    return df
+
+def marcar_pago(id, status):
+    conn = get_conn()
+    cur = conn.cursor()
+
+    if status:
+        cur.execute("""
+            UPDATE expenses
+            SET pago = TRUE,
+                data_pagamento = NOW()
+            WHERE id=%s
+        """, (id,))
+    else:
+        cur.execute("""
+            UPDATE expenses
+            SET pago = FALSE,
+                data_pagamento = NULL
+            WHERE id=%s
+        """, (id,))
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+def excluir(id):
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM expenses WHERE id=%s", (id,))
+    conn.commit()
+    cur.close()
+    conn.close()
+
+# =========================
+# HEADER
+# =========================
+st.title("💑 Finanças Casal JR & VIC")
+
+# =========================
+# NOVA COMPRA
+# =========================
 st.subheader("➕ Nova Compra")
 
-c1,c2,c3 = st.columns(3)
-desc = c1.text_input("Descrição")
+c1, c2, c3 = st.columns(3)
+
+descricao = c1.text_input("Descrição")
 valor_total = c2.number_input("Valor total da compra", min_value=0.0, format="%.2f")
-parcelas = c3.number_input("Parcelas", 1, 24, 1)
-data_compra = st.date_input("Mês da compra", datetime.today())
+parcelas = c3.number_input("Parcelas", min_value=1, max_value=24, step=1)
 
-if st.button("Salvar compra"):
-    if desc and valor_total > 0:
-        valor_parcela = valor_total / parcelas
-        novos = []
+data_compra = st.date_input("Mês da compra", value=date.today())
 
-        for i in range(parcelas):
-            data_parcela = data_compra + relativedelta(months=i)
-            novos.append({
-                "ID": datetime.now().timestamp()+i,
-                "Usuario": st.session_state.user,
-                "Descricao": desc,
-                "Data": data_parcela.strftime("%Y-%m"),
-                "Valor Parcela": round(valor_parcela,2),
-                "Valor Total": valor_total,
-                "Parcela": i+1,
-                "Total Parcelas": parcelas,
-                "Pago": False,
-                "Data Pagamento": ""
-            })
-
-        df = pd.concat([df,pd.DataFrame(novos)], ignore_index=True)
-        save_data(df)
-        st.success("Compra salva!")
+if st.button("Salvar compra", use_container_width=True):
+    if descricao and valor_total > 0:
+        inserir_parcelas(descricao, valor_total, parcelas, data_compra)
+        st.success("Compra cadastrada!")
         st.rerun()
 
-# ================= FILTRO =================
+# =========================
+# FILTRO MENSAL
+# =========================
 st.subheader("📅 Filtro mensal")
-mes = st.text_input("Mês (YYYY-MM)", datetime.today().strftime("%Y-%m"))
-df_mes = df_user[df_user["Data"] == mes]
 
-# ================= DASHBOARD =================
-total = df_mes["Valor Parcela"].sum()
-pago = df_mes[df_mes["Pago"]==True]["Valor Parcela"].sum()
+df = carregar_dados()
+
+meses = df["data_vencimento"].dt.strftime("%Y-%m").unique().tolist() if not df.empty else []
+mes_sel = st.selectbox("Selecione o mês", meses)
+
+if mes_sel:
+    df_mes = df[df["data_vencimento"].dt.strftime("%Y-%m") == mes_sel]
+else:
+    df_mes = df
+
+# =========================
+# KPIs
+# =========================
+total = df_mes["valor_parcela"].sum()
+pago = df_mes[df_mes["pago"] == True]["valor_parcela"].sum()
 restante = total - pago
 
-m1,m2,m3 = st.columns(3)
-m1.metric("💰 Total", f"R$ {total:,.2f}")
-m2.metric("✅ Pago", f"R$ {pago:,.2f}")
-m3.metric("⏳ Restante", f"R$ {restante:,.2f}")
+k1, k2, k3 = st.columns(3)
+k1.metric("💰 Total", f"R$ {total:,.2f}")
+k2.metric("✅ Pago", f"R$ {pago:,.2f}")
+k3.metric("⏳ Restante", f"R$ {restante:,.2f}")
 
-# ================= LISTA =================
+# =========================
+# TABELA
+# =========================
 st.subheader("📋 Despesas do mês")
 
-for idx,row in df_mes.iterrows():
-    cols = st.columns([3,2,2,1,1])
+for _, row in df_mes.iterrows():
+    c1, c2, c3, c4, c5 = st.columns([3,1,1,1,1])
 
-    cols[0].write(row["Descricao"])
-    cols[1].write(f"R$ {row['Valor Parcela']:,.2f}")
-    cols[2].write(f"{int(row['Parcela'])}ª de {int(row['Total Parcelas'])}x")
+    c1.write(row["descricao"])
+    c2.write(f"{int(row['parcela_atual'])}ª de {int(row['total_parcelas'])}x")
+    c3.write(f"R$ {row['valor_parcela']:,.2f}")
 
-    pago_chk = cols[3].checkbox("Pago", bool(row["Pago"]), key=f"pg_{idx}")
-
-    if pago_chk != row["Pago"]:
-        df.loc[idx,"Pago"] = pago_chk
-        df.loc[idx,"Data Pagamento"] = datetime.now().strftime("%d/%m/%Y %H:%M")
-        save_data(df)
+    pago_check = c4.checkbox(
+        "Pago",
+        value=row["pago"],
+        key=f"pg_{row['id']}"
+    )
+    if pago_check != row["pago"]:
+        marcar_pago(row["id"], pago_check)
         st.rerun()
 
-    if cols[4].button("🗑️", key=f"del_{idx}"):
-        df = df.drop(idx)
-        save_data(df)
+    if c5.button("🗑️", key=f"del_{row['id']}"):
+        excluir(row["id"])
         st.rerun()
 
-# ================= GRÁFICO =================
-if not df_mes.empty:
-    graf = df_mes.groupby("Descricao")["Valor Parcela"].sum().reset_index()
-    fig = px.pie(graf, names="Descricao", values="Valor Parcela")
-    st.plotly_chart(fig, use_container_width=True)
+# =========================
+# PDF PROFISSIONAL
+# =========================
+st.divider()
 
-# ================= PDF =================
-st.subheader("📄 Relatório")
-
-if st.button("Baixar PDF"):
+def gerar_pdf(df_pdf, mes):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer)
     styles = getSampleStyleSheet()
 
-    elems = [
-        Paragraph("Finanças Casal JR & VIC", styles["Title"]),
-        Paragraph(f"Mês: {mes}", styles["Normal"]),
-        Paragraph(f"Gerado em: {datetime.now()}", styles["Normal"]),
-        Spacer(1,12)
-    ]
+    elements = []
+    elements.append(Paragraph("Finanças Casal JR e VIC", styles["Title"]))
+    elements.append(Paragraph(f"Mês: {mes}", styles["Normal"]))
+    elements.append(Paragraph(f"Gerado em: {datetime.now()}", styles["Normal"]))
+    elements.append(Spacer(1, 12))
 
-    dados = [["Descrição","Valor","Parcela","Pago"]]
-    for _,r in df_mes.iterrows():
-        dados.append([
-            r["Descricao"],
-            f"R$ {r['Valor Parcela']:.2f}",
-            f"{int(r['Parcela'])}/{int(r['Total Parcelas'])}",
-            "Sim" if r["Pago"] else "Não"
+    tabela = [["Descrição", "Parcela", "Valor", "Pago"]]
+
+    for _, r in df_pdf.iterrows():
+        tabela.append([
+            r["descricao"],
+            f"{int(r['parcela_atual'])}/{int(r['total_parcelas'])}",
+            f"R$ {r['valor_parcela']:,.2f}",
+            "Sim" if r["pago"] else "Não"
         ])
 
-    tabela = Table(dados)
-    tabela.setStyle([
-        ('BACKGROUND',(0,0),(-1,0),colors.grey),
-        ('GRID',(0,0),(-1,-1),0.5,colors.black)
-    ])
+    table = Table(tabela)
+    table.setStyle(TableStyle([
+        ("BACKGROUND", (0,0), (-1,0), colors.purple),
+        ("TEXTCOLOR", (0,0), (-1,0), colors.white),
+        ("ALIGN",(0,0),(-1,-1),"CENTER"),
+        ("GRID",(0,0),(-1,-1),0.25,colors.black),
+    ]))
 
-    elems.append(tabela)
-    doc.build(elems)
+    elements.append(table)
+    doc.build(elements)
 
+    buffer.seek(0)
+    return buffer
+
+if not df_mes.empty:
+    pdf_file = gerar_pdf(df_mes, mes_sel)
     st.download_button(
-        "⬇️ Download",
-        data=buffer.getvalue(),
-        file_name=f"Relatorio_{mes}.pdf",
-        mime="application/pdf"
+        "📥 Baixar relatório mensal (PDF)",
+        pdf_file,
+        file_name=f"financas_{mes_sel}.pdf",
+        mime="application/pdf",
+        use_container_width=True
     )
