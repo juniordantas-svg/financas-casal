@@ -5,7 +5,6 @@ from dateutil.relativedelta import relativedelta
 import plotly.express as px
 import os
 import io
-
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib import colors
@@ -13,121 +12,86 @@ from reportlab.lib import colors
 # ================= CONFIG =================
 st.set_page_config(page_title="💑 Finanças Casal JR & VIC", layout="wide")
 
-USERS = {
-    "junior": "9391",
-    "victoria": "1612"
-}
-
+USERS = {"junior": "9391", "victoria": "1612"}
 DATA_FILE = "dados_financas.csv"
 
-COLUNAS = [
+COLS = [
     "ID","Usuario","Descricao","Data","Valor Parcela","Valor Total",
     "Parcela","Total Parcelas","Pago","Data Pagamento"
 ]
 
-# ================= THEME =================
-if "dark_mode" not in st.session_state:
-    st.session_state.dark_mode = True
-
-def aplicar_css():
-    if st.session_state.dark_mode:
-        bg = "#0e1117"
-        card = "#161b22"
-        text = "white"
-    else:
-        bg = "#f5f7fb"
-        card = "white"
-        text = "#111"
-
-    st.markdown(f"""
-    <style>
-    .stApp {{background:{bg}; color:{text};}}
-    .big-title {{
-        text-align:center;
-        font-size:42px;
-        font-weight:800;
-        background: linear-gradient(90deg,#8a2be2,#00c6ff);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-    }}
-    .card {{
-        background:{card};
-        padding:18px;
-        border-radius:18px;
-        box-shadow:0 8px 25px rgba(0,0,0,0.25);
-    }}
-    </style>
-    """, unsafe_allow_html=True)
-
-aplicar_css()
+# ================= CSS =================
+st.markdown("""
+<style>
+.big-title{
+text-align:center;
+font-size:40px;
+font-weight:800;
+background:linear-gradient(90deg,#8a2be2,#00c6ff);
+-webkit-background-clip:text;
+-webkit-text-fill-color:transparent;
+}
+</style>
+""", unsafe_allow_html=True)
 
 # ================= BANCO =================
-def carregar():
+def load_data():
     if os.path.exists(DATA_FILE):
         df = pd.read_csv(DATA_FILE)
-        for c in COLUNAS:
+        for c in COLS:
             if c not in df.columns:
                 df[c] = None
-        return df[COLUNAS]
-    return pd.DataFrame(columns=COLUNAS)
+        return df[COLS]
+    return pd.DataFrame(columns=COLS)
 
-def salvar(df):
+def save_data(df):
     df.to_csv(DATA_FILE, index=False)
 
-df = carregar()
+df = load_data()
 
 # ================= SESSION =================
-if "logado" not in st.session_state:
-    st.session_state.logado = False
-if "usuario" not in st.session_state:
-    st.session_state.usuario = None
-if "editando" not in st.session_state:
-    st.session_state.editando = None
+if "logged" not in st.session_state:
+    st.session_state.logged = False
+if "user" not in st.session_state:
+    st.session_state.user = None
 
 # ================= LOGIN =================
-def tela_login():
+def login():
     st.markdown('<div class="big-title">💑 Finanças Casal JR & VIC</div>', unsafe_allow_html=True)
-    st.markdown("### 🔐 Acesso Premium")
-
     with st.form("login_form"):
-        user = st.text_input("Usuário").lower()
-        pwd = st.text_input("Senha", type="password")
+        u = st.text_input("Usuário").lower()
+        p = st.text_input("Senha", type="password")
         ok = st.form_submit_button("Entrar")
 
         if ok:
-            if user in USERS and USERS[user] == pwd:
-                st.session_state.logado = True
-                st.session_state.usuario = user
+            if u in USERS and USERS[u] == p:
+                st.session_state.logged = True
+                st.session_state.user = u
                 st.rerun()
             else:
                 st.error("Credenciais inválidas")
 
-if not st.session_state.logado:
-    tela_login()
+if not st.session_state.logged:
+    login()
     st.stop()
 
 # ================= HEADER =================
-top1, top2 = st.columns([8,2])
-top1.markdown('<div class="big-title">💑 Finanças Casal JR & VIC</div>', unsafe_allow_html=True)
+st.markdown('<div class="big-title">💑 Finanças Casal JR & VIC</div>', unsafe_allow_html=True)
 
-if top2.button("🌙 / ☀️"):
-    st.session_state.dark_mode = not st.session_state.dark_mode
-    st.rerun()
-
-# filtra por usuário
-df_user = df[df["Usuario"] == st.session_state.usuario]
+# filtra usuário
+df_user = df[df["Usuario"] == st.session_state.user]
 
 # ================= NOVA COMPRA =================
-st.markdown("## ➕ Nova Compra")
+st.subheader("➕ Nova Compra")
 
 c1,c2,c3 = st.columns(3)
-descricao = c1.text_input("Descrição")
-valor_total = c2.number_input("Valor total", min_value=0.0, format="%.2f")
+desc = c1.text_input("Descrição")
+valor_total = c2.number_input("Valor total da compra", min_value=0.0, format="%.2f")
 parcelas = c3.number_input("Parcelas", 1, 24, 1)
 data_compra = st.date_input("Mês da compra", datetime.today())
 
-if st.button("💾 Salvar Compra"):
-    if descricao and valor_total > 0:
+if st.button("Salvar compra"):
+    if desc and valor_total > 0:
         valor_parcela = valor_total / parcelas
         novos = []
 
@@ -135,8 +99,8 @@ if st.button("💾 Salvar Compra"):
             data_parcela = data_compra + relativedelta(months=i)
             novos.append({
                 "ID": datetime.now().timestamp()+i,
-                "Usuario": st.session_state.usuario,
-                "Descricao": descricao,
+                "Usuario": st.session_state.user,
+                "Descricao": desc,
                 "Data": data_parcela.strftime("%Y-%m"),
                 "Valor Parcela": round(valor_parcela,2),
                 "Valor Total": valor_total,
@@ -147,12 +111,12 @@ if st.button("💾 Salvar Compra"):
             })
 
         df = pd.concat([df,pd.DataFrame(novos)], ignore_index=True)
-        salvar(df)
-        st.success("Compra lançada!")
+        save_data(df)
+        st.success("Compra salva!")
         st.rerun()
 
 # ================= FILTRO =================
-st.markdown("## 📅 Filtro mensal")
+st.subheader("📅 Filtro mensal")
 mes = st.text_input("Mês (YYYY-MM)", datetime.today().strftime("%Y-%m"))
 df_mes = df_user[df_user["Data"] == mes]
 
@@ -166,51 +130,45 @@ m1.metric("💰 Total", f"R$ {total:,.2f}")
 m2.metric("✅ Pago", f"R$ {pago:,.2f}")
 m3.metric("⏳ Restante", f"R$ {restante:,.2f}")
 
-# previsão simples IA-like
-media_mensal = df_user.groupby("Data")["Valor Parcela"].sum().mean() if not df_user.empty else 0
-st.info(f"🤖 Previsão média mensal: R$ {media_mensal:,.2f}")
-
-# ================= ALERTA =================
-vencer = df_mes[df_mes["Pago"]==False]
-if not vencer.empty:
-    st.warning(f"⚠️ {len(vencer)} conta(s) pendente(s) este mês")
-
 # ================= LISTA =================
-st.markdown("## 📋 Despesas")
+st.subheader("📋 Despesas do mês")
 
 for idx,row in df_mes.iterrows():
-    with st.container():
-        a,b,c,d,e,f = st.columns([3,2,2,1,1,1])
+    cols = st.columns([3,2,2,1,1])
 
-        a.write(row["Descricao"])
-        b.write(f"R$ {row['Valor Parcela']:,.2f}")
-        c.write(f"{int(row['Parcela'])}ª de {int(row['Total Parcelas'])}x")
+    cols[0].write(row["Descricao"])
+    cols[1].write(f"R$ {row['Valor Parcela']:,.2f}")
+    cols[2].write(f"{int(row['Parcela'])}ª de {int(row['Total Parcelas'])}x")
 
-        pago_chk = d.checkbox("Pago", bool(row["Pago"]), key=f"pg{idx}")
-        if pago_chk != row["Pago"]:
-            df.loc[idx,"Pago"] = pago_chk
-            df.loc[idx,"Data Pagamento"] = datetime.now().strftime("%d/%m/%Y %H:%M")
-            salvar(df)
-            st.rerun()
+    # checkbox pago
+    pago_chk = cols[3].checkbox(
+        "Pago",
+        value=bool(row["Pago"]),
+        key=f"pg_{idx}"
+    )
 
-        if e.button("✏️", key=f"ed{idx}"):
-            st.session_state.editando = idx
+    if pago_chk != row["Pago"]:
+        df.loc[idx,"Pago"] = pago_chk
+        df.loc[idx,"Data Pagamento"] = datetime.now().strftime("%d/%m/%Y %H:%M")
+        save_data(df)
+        st.rerun()
 
-        if f.button("🗑️", key=f"dl{idx}"):
-            df = df.drop(idx)
-            salvar(df)
-            st.rerun()
+    # excluir
+    if cols[4].button("🗑️", key=f"del_{idx}"):
+        df = df.drop(idx)
+        save_data(df)
+        st.rerun()
 
-# ================= GRÁFICOS =================
-if not df_user.empty:
-    evol = df_user.groupby("Data")["Valor Parcela"].sum().reset_index()
-    fig = px.line(evol, x="Data", y="Valor Parcela", title="📈 Evolução mensal")
+# ================= GRÁFICO =================
+if not df_mes.empty:
+    graf = df_mes.groupby("Descricao")["Valor Parcela"].sum().reset_index()
+    fig = px.pie(graf, names="Descricao", values="Valor Parcela")
     st.plotly_chart(fig, use_container_width=True)
 
 # ================= PDF =================
-st.markdown("## 📄 Relatório")
+st.subheader("📄 Relatório")
 
-if st.button("📄 Baixar PDF"):
+if st.button("Baixar PDF"):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer)
     styles = getSampleStyleSheet()
