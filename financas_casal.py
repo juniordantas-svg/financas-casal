@@ -1,13 +1,12 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime, date
-import psycopg2
-from psycopg2.extras import RealDictCursor
 from dateutil.relativedelta import relativedelta
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib import colors
 import io
+from supabase import create_client
 
 # =========================
 # CONFIG
@@ -20,29 +19,23 @@ USERS = {
 }
 
 # =========================
-# DB CONNECTION (ROBUSTA)
+# SUPABASE CLIENT
 # =========================
-@st.cache_resource
-def get_conn():
-    try:
-        conn = psycopg2.connect(
-            st.secrets["DATABASE_URL"],
-            cursor_factory=RealDictCursor,
-            sslmode="require",
-            connect_timeout=10
-        )
-        return conn
-    except Exception as e:
-        st.error("❌ Erro ao conectar no banco de dados.")
-        st.exception(e)
-        st.stop()
+supabase = create_client(
+    st.secrets["SUPABASE_URL"],
+    st.secrets["SUPABASE_KEY"]
+)
 
+# =========================
+# INIT DB (cria tabela se não existir)
+# =========================
 def init_db():
-    try:
-        conn = get_conn()
-        cur = conn.cursor()
-
-        cur.execute("""
+    tables = supabase.table("expenses").select("*").execute()
+    if tables.error:
+        # Criação inicial da tabela
+        # Obs: Supabase só permite criar tabelas via SQL ou interface web
+        # Aqui vamos tentar criar via RPC SQL
+        query = """
         CREATE TABLE IF NOT EXISTS expenses (
             id SERIAL PRIMARY KEY,
             descricao TEXT,
@@ -52,21 +45,12 @@ def init_db():
             data_vencimento DATE,
             pago BOOLEAN DEFAULT FALSE,
             data_pagamento TIMESTAMP
-        )
-        """)
-
-        conn.commit()
-        cur.close()
-
-    except Exception as e:
-        st.error("❌ Falha ao inicializar banco.")
-        st.exception(e)
-        st.stop()
-
-init_db()
+        );
+        """
+        supabase.rpc("sql", {"query": query}).execute()
 
 # =========================
-# LOGIN PREMIUM
+# LOGIN
 # =========================
 if "logged" not in st.session_state:
     st.session_state.logged = False
@@ -91,74 +75,45 @@ if not st.session_state.logged:
     st.stop()
 
 # =========================
-# FUNÇÕES DB (SEGURAS)
+# FUNÇÕES DB (via Supabase)
 # =========================
 def inserir_parcelas(descricao, valor_total, parcelas, data_compra):
-    conn = get_conn()
-    cur = conn.cursor()
-
-    try:
-        valor_parcela = round(valor_total / parcelas, 2)
-
-        for i in range(parcelas):
-            venc = data_compra + relativedelta(months=i)
-            cur.execute("""
-                INSERT INTO expenses
-                (descricao, valor_parcela, total_parcelas, parcela_atual, data_vencimento)
-                VALUES (%s,%s,%s,%s,%s)
-            """, (descricao, valor_parcela, parcelas, i+1, venc))
-
-        conn.commit()
-
-    except Exception as e:
-        st.error("Erro ao inserir parcelas")
-        st.exception(e)
-
-    finally:
-        cur.close()
+    valor_parcela = round(valor_total / parcelas, 2)
+    for i in range(parcelas):
+        venc = data_compra + relativedelta(months=i)
+        supabase.table("expenses").insert({
+            "descricao": descricao,
+            "valor_parcela": valor_parcela,
+            "total_parcelas": parcelas,
+            "parcela_atual": i+1,
+            "data_vencimento": venc,
+            "pago": False
+        }).execute()
 
 def carregar_dados():
-    conn = get_conn()
-    try:
-        df = pd.read_sql("SELECT * FROM expenses ORDER BY data_vencimento", conn)
-        return df
-    except Exception as e:
+    res = supabase.table("expenses").select("*").order("data_vencimento").execute()
+    if res.error:
         st.error("Erro ao carregar dados")
-        st.exception(e)
         return pd.DataFrame()
+    df = pd.DataFrame(res.data)
+    if not df.empty:
+        df["data_vencimento"] = pd.to_datetime(df["data_vencimento"])
+    return df
 
 def marcar_pago(id, status):
-    conn = get_conn()
-    cur = conn.cursor()
-
-    try:
-        if status:
-            cur.execute("""
-                UPDATE expenses
-                SET pago = TRUE,
-                    data_pagamento = NOW()
-                WHERE id=%s
-            """, (id,))
-        else:
-            cur.execute("""
-                UPDATE expenses
-                SET pago = FALSE,
-                    data_pagamento = NULL
-                WHERE id=%s
-            """, (id,))
-
-        conn.commit()
-    finally:
-        cur.close()
+    if status:
+        supabase.table("expenses").update({
+            "pago": True,
+            "data_pagamento": datetime.now()
+        }).eq("id", id).execute()
+    else:
+        supabase.table("expenses").update({
+            "pago": False,
+            "data_pagamento": None
+        }).eq("id", id).execute()
 
 def excluir(id):
-    conn = get_conn()
-    cur = conn.cursor()
-    try:
-        cur.execute("DELETE FROM expenses WHERE id=%s", (id,))
-        conn.commit()
-    finally:
-        cur.close()
+    supabase.table("expenses").delete().eq("id", id).execute()
 
 # =========================
 # HEADER
@@ -182,7 +137,7 @@ if st.button("Salvar compra", use_container_width=True):
     if descricao and valor_total > 0:
         inserir_parcelas(descricao, valor_total, parcelas, data_compra)
         st.success("Compra cadastrada!")
-        st.rerun()
+        st.experimental_rerun()
 
 # =========================
 # FILTRO MENSAL
@@ -230,11 +185,11 @@ for _, row in df_mes.iterrows():
     )
     if pago_check != row["pago"]:
         marcar_pago(row["id"], pago_check)
-        st.rerun()
+        st.experimental_rerun()
 
     if c5.button("🗑️", key=f"del_{row['id']}"):
         excluir(row["id"])
-        st.rerun()
+        st.experimental_rerun()
 
 # =========================
 # PDF
