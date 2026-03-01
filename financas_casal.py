@@ -7,6 +7,7 @@ from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib import colors
 import io
 from supabase import create_client
+import plotly.express as px
 
 # =========================
 # CONFIG
@@ -27,29 +28,6 @@ supabase = create_client(
 )
 
 # =========================
-# INIT DB (cria tabela se não existir)
-# =========================
-def init_db():
-    tables = supabase.table("expenses").select("*").execute()
-    if tables.error:
-        # Criação inicial da tabela
-        # Obs: Supabase só permite criar tabelas via SQL ou interface web
-        # Aqui vamos tentar criar via RPC SQL
-        query = """
-        CREATE TABLE IF NOT EXISTS expenses (
-            id SERIAL PRIMARY KEY,
-            descricao TEXT,
-            valor_parcela NUMERIC,
-            total_parcelas INTEGER,
-            parcela_atual INTEGER,
-            data_vencimento DATE,
-            pago BOOLEAN DEFAULT FALSE,
-            data_pagamento TIMESTAMP
-        );
-        """
-        supabase.rpc("sql", {"query": query}).execute()
-
-# =========================
 # LOGIN
 # =========================
 if "logged" not in st.session_state:
@@ -66,7 +44,7 @@ def login_screen():
         if user and pwd:
             if USERS.get(user.lower()) == pwd:
                 st.session_state.logged = True
-                st.rerun()
+                st.experimental_rerun()
             else:
                 st.error("Usuário ou senha inválidos")
 
@@ -75,9 +53,9 @@ if not st.session_state.logged:
     st.stop()
 
 # =========================
-# FUNÇÕES DB (via Supabase)
+# FUNÇÕES DB
 # =========================
-def inserir_parcelas(descricao, valor_total, parcelas, data_compra):
+def inserir_parcelas(descricao, valor_total, parcelas, data_compra, categoria):
     valor_parcela = round(valor_total / parcelas, 2)
     for i in range(parcelas):
         venc = data_compra + relativedelta(months=i)
@@ -87,7 +65,8 @@ def inserir_parcelas(descricao, valor_total, parcelas, data_compra):
             "total_parcelas": parcelas,
             "parcela_atual": i+1,
             "data_vencimento": venc,
-            "pago": False
+            "pago": False,
+            "categoria": categoria
         }).execute()
 
 def carregar_dados():
@@ -121,44 +100,52 @@ def excluir(id):
 st.title("💑 Finanças Casal JR & VIC")
 
 # =========================
-# NOVA COMPRA
+# NOVA COMPRA COM CATEGORIA
 # =========================
 st.subheader("➕ Nova Compra")
 
-c1, c2, c3 = st.columns(3)
+c1, c2, c3, c4 = st.columns(4)
 
 descricao = c1.text_input("Descrição")
 valor_total = c2.number_input("Valor total da compra", min_value=0.0, format="%.2f")
 parcelas = c3.number_input("Parcelas", min_value=1, max_value=24, step=1)
+categoria = c4.text_input("Categoria (ex: Alimentação, Lazer, Contas)")
 
 data_compra = st.date_input("Mês da compra", value=date.today())
 
 if st.button("Salvar compra", use_container_width=True):
-    if descricao and valor_total > 0:
-        inserir_parcelas(descricao, valor_total, parcelas, data_compra)
+    if descricao and valor_total > 0 and categoria:
+        inserir_parcelas(descricao, valor_total, parcelas, data_compra, categoria)
         st.success("Compra cadastrada!")
         st.experimental_rerun()
 
 # =========================
-# FILTRO MENSAL
+# FILTRO AVANÇADO
 # =========================
-st.subheader("📅 Filtro mensal")
+st.subheader("📅 Filtros avançados")
 
 df = carregar_dados()
 
-meses = df["data_vencimento"].dt.strftime("%Y-%m").unique().tolist() if not df.empty else []
-mes_sel = st.selectbox("Selecione o mês", meses)
+anos = df["data_vencimento"].dt.year.sort_values().unique().tolist() if not df.empty else []
+anos_sel = st.multiselect("Ano", anos, default=anos)
 
-if mes_sel:
-    df_mes = df[df["data_vencimento"].dt.strftime("%Y-%m") == mes_sel]
-else:
-    df_mes = df
+categorias = df["categoria"].unique().tolist() if not df.empty else []
+categorias_sel = st.multiselect("Categoria", categorias, default=categorias)
+
+if df.empty:
+    st.info("Nenhum registro encontrado")
+    st.stop()
+
+df_filtrado = df[
+    df["data_vencimento"].dt.year.isin(anos_sel) &
+    df["categoria"].isin(categorias_sel)
+]
 
 # =========================
 # KPIs
 # =========================
-total = df_mes["valor_parcela"].sum() if not df_mes.empty else 0
-pago = df_mes[df_mes["pago"] == True]["valor_parcela"].sum() if not df_mes.empty else 0
+total = df_filtrado["valor_parcela"].sum() if not df_filtrado.empty else 0
+pago = df_filtrado[df_filtrado["pago"] == True]["valor_parcela"].sum() if not df_filtrado.empty else 0
 restante = total - pago
 
 k1, k2, k3 = st.columns(3)
@@ -167,14 +154,52 @@ k2.metric("✅ Pago", f"R$ {pago:,.2f}")
 k3.metric("⏳ Restante", f"R$ {restante:,.2f}")
 
 # =========================
-# TABELA
+# GRÁFICOS DE BARRAS
 # =========================
-st.subheader("📋 Despesas do mês")
+st.subheader("📊 Despesas por categoria / mês")
 
-for _, row in df_mes.iterrows():
+if not df_filtrado.empty:
+    df_filtrado["mes"] = df_filtrado["data_vencimento"].dt.to_period("M")
+    grafico = df_filtrado.groupby(["mes", "categoria"])["valor_parcela"].sum().reset_index()
+    fig = px.bar(
+        grafico,
+        x="mes",
+        y="valor_parcela",
+        color="categoria",
+        title="Despesas por categoria / mês",
+        labels={"mes":"Mês", "valor_parcela":"Valor (R$)", "categoria":"Categoria"}
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
+# =========================
+# RESUMO ANUAL
+# =========================
+st.subheader("📈 Resumo anual")
+
+df_anual = df_filtrado.groupby([df_filtrado["data_vencimento"].dt.year, "categoria"])["valor_parcela"].sum().reset_index()
+df_anual.rename(columns={"data_vencimento":"Ano", "valor_parcela":"Total"}, inplace=True)
+
+st.dataframe(df_anual)
+
+fig_anual = px.bar(
+    df_anual,
+    x="data_vencimento",
+    y="Total",
+    color="categoria",
+    title="Resumo anual de despesas por categoria",
+    labels={"data_vencimento":"Ano", "Total":"Valor (R$)", "categoria":"Categoria"}
+)
+st.plotly_chart(fig_anual, use_container_width=True)
+
+# =========================
+# TABELA DETALHADA
+# =========================
+st.subheader("📋 Despesas detalhadas")
+
+for _, row in df_filtrado.iterrows():
     c1, c2, c3, c4, c5 = st.columns([3,1,1,1,1])
 
-    c1.write(row["descricao"])
+    c1.write(f"{row['descricao']} ({row['categoria']})")
     c2.write(f"{int(row['parcela_atual'])}ª de {int(row['total_parcelas'])}x")
     c3.write(f"R$ {row['valor_parcela']:,.2f}")
 
@@ -196,22 +221,22 @@ for _, row in df_mes.iterrows():
 # =========================
 st.divider()
 
-def gerar_pdf(df_pdf, mes):
+def gerar_pdf(df_pdf):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer)
     styles = getSampleStyleSheet()
 
     elements = []
-    elements.append(Paragraph("Finanças Casal JR e VIC", styles["Title"]))
-    elements.append(Paragraph(f"Mês: {mes}", styles["Normal"]))
+    elements.append(Paragraph("Finanças Casal JR & VIC", styles["Title"]))
     elements.append(Paragraph(f"Gerado em: {datetime.now()}", styles["Normal"]))
     elements.append(Spacer(1, 12))
 
-    tabela = [["Descrição", "Parcela", "Valor", "Pago"]]
+    tabela = [["Descrição", "Categoria", "Parcela", "Valor", "Pago"]]
 
     for _, r in df_pdf.iterrows():
         tabela.append([
             r["descricao"],
+            r["categoria"],
             f"{int(r['parcela_atual'])}/{int(r['total_parcelas'])}",
             f"R$ {r['valor_parcela']:,.2f}",
             "Sim" if r["pago"] else "Não"
@@ -231,12 +256,11 @@ def gerar_pdf(df_pdf, mes):
     buffer.seek(0)
     return buffer
 
-if not df_mes.empty:
-    pdf_file = gerar_pdf(df_mes, mes_sel)
-    st.download_button(
-        "📥 Baixar relatório mensal (PDF)",
-        pdf_file,
-        file_name=f"financas_{mes_sel}.pdf",
-        mime="application/pdf",
-        use_container_width=True
-    )
+pdf_file = gerar_pdf(df_filtrado)
+st.download_button(
+    "📥 Baixar relatório (PDF)",
+    pdf_file,
+    file_name=f"financas_{datetime.now().strftime('%Y%m%d')}.pdf",
+    mime="application/pdf",
+    use_container_width=True
+)
