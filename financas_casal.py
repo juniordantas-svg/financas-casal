@@ -35,7 +35,7 @@ supabase = create_client(
 )
 
 # =========================
-# LOGIN
+# LOGIN SEGURO
 # =========================
 if "logged" not in st.session_state:
     st.session_state.logged = False
@@ -49,7 +49,8 @@ def login_screen():
     if st.button("Entrar", use_container_width=True):
         if USERS.get(user.lower()) == pwd:
             st.session_state.logged = True
-            st.experimental_rerun()
+            st.success("Login realizado com sucesso! Atualize a página se necessário.")
+            st.stop()
         else:
             st.error("Usuário ou senha inválidos")
 
@@ -77,7 +78,7 @@ def inserir_parcelas(descricao, valor_total, parcelas, data_compra, categoria):
 def carregar_dados():
     res = supabase.table("expenses").select("*").order("data_vencimento").execute()
     if res.error:
-        st.error("Erro ao carregar dados")
+        st.error("Erro ao carregar dados: " + str(res.error))
         return pd.DataFrame()
     df = pd.DataFrame(res.data)
     if not df.empty:
@@ -109,20 +110,18 @@ descricao = c1.text_input("Descrição")
 valor_total = c2.number_input("Valor total", min_value=0.0, format="%.2f")
 parcelas = c3.number_input("Parcelas", min_value=1, max_value=24, step=1)
 categoria = c4.text_input("Categoria")
-
 data_compra = st.date_input("Mês da compra", value=date.today())
 
 if st.button("Salvar compra", use_container_width=True):
     if descricao and valor_total > 0 and categoria:
         inserir_parcelas(descricao, valor_total, parcelas, data_compra, categoria)
         st.success("Compra cadastrada!")
-        st.experimental_rerun()
+        st.stop()  # evita rerun problemático
 
 # =========================
 # CARREGAR DADOS E FILTROS
 # =========================
 df = carregar_dados()
-
 if df.empty:
     st.info("Nenhum registro encontrado")
     st.stop()
@@ -211,11 +210,11 @@ for _, row in df_filtrado.iterrows():
     )
     if pago_check != row["pago"]:
         marcar_pago(row["id"], pago_check)
-        st.experimental_rerun()
+        st.stop()  # evita rerun problemático
 
     if c5.button("🗑️", key=f"del_{row['id']}"):
         excluir(row["id"])
-        st.experimental_rerun()
+        st.stop()
 
 # =========================
 # PDF ESTILIZADO
