@@ -129,7 +129,7 @@ def tela_login():
             submit = st.form_submit_button("Entrar")
 
             if submit:
-                if matricula == "dantas" and senha == "1234":
+                if matricula == "25000620" and senha == "715506":
                     st.session_state.logado = True
                     st.success("✅ Login realizado com sucesso!")
                     st.balloons()
