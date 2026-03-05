@@ -1,132 +1,118 @@
-import streamlit as st
-import pandas as pd
-import uuid
-import hashlib
-import random
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login</title>
+    <style>
+        /* Reset básico */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
 
-st.set_page_config(page_title="Cadeia de Custódia", layout="wide")
+        body, html {
+            height: 100%;
+            background-color: #1f1f1f; /* fundo uniforme */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
 
-# ---------------------------
-# FUNÇÕES DE NEGÓCIO
-# ---------------------------
+        .login-container {
+            background-color: #2c2c2c; /* cor do cartão */
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.6);
+            width: 320px;
+            text-align: center;
+        }
 
-def calcular_media(row):
-    media_parcial = (row["M1"] + row["M2"]) / 2
-    
-    if media_parcial >= 7:
-        return media_parcial
-    
-    if row["M3"] >= 7:
-        return row["M3"]
-    
-    return media_parcial
+        .login-container img {
+            width: 120px;
+            margin-bottom: 20px;
+        }
 
-def calcular_status(row):
-    frequencia_minima = 75
-    
-    if row["FR"] < frequencia_minima:
-        return "REPROVADO POR FALTA"
-    
-    media_parcial = (row["M1"] + row["M2"]) / 2
-    
-    if media_parcial >= 7:
-        return "APROVADO"
-    
-    if row["M3"] >= 7:
-        return "APROVADO"
-    
-    return "REPROVADO POR NOTA"
+        .login-container h2 {
+            color: #ffffff;
+            margin-bottom: 20px;
+        }
 
+        .login-container input {
+            width: 100%;
+            padding: 12px;
+            margin: 8px 0;
+            border: none;
+            border-radius: 6px;
+            background-color: #3a3a3a;
+            color: #ffffff;
+            font-size: 16px;
+        }
 
-# ---------------------------
-# BASE DE ALUNOS
-# ---------------------------
+        .login-container input::placeholder {
+            color: #bfbfbf;
+        }
 
-def gerar_alunos():
-    nomes = [
-        "Carlos Mendes","Ana Beatriz Lima","João Victor Alves","Mariana Rocha",
-        "Felipe Castro","Juliana Souza","Bruno Henrique","Larissa Martins",
-        "Gabriel Silva","Camila Oliveira","Pedro Henrique","Isabela Santos",
-        "Rafael Costa","Amanda Nogueira","Lucas Pereira","Fernanda Lima",
-        "Matheus Rodrigues","Patrícia Gomes","Thiago Almeida","Beatriz Moraes",
-        "Leonardo Araújo","Vanessa Ribeiro","Eduardo Barros","Letícia Carvalho",
-        "Gustavo Teixeira","Bianca Freitas","André Fernandes","Natália Duarte",
-        "Daniel Moreira","Carolina Batista"
-    ]
-    
-    dados = []
-    
-    for i in range(30):
-        m1 = random.randint(4, 9)
-        m2 = random.randint(4, 9)
-        m3 = random.randint(4, 9)
-        fr = random.randint(60, 100)
-        
-        dados.append({
-            "Matrícula": f"2026{i+1:03}",
-            "Nome": nomes[i],
-            "M1": m1,
-            "M2": m2,
-            "M3": m3,
-            "FR": fr
-        })
-    
-    df = pd.DataFrame(dados)
-    df["MF"] = df.apply(calcular_media, axis=1)
-    df["STATUS"] = df.apply(calcular_status, axis=1)
-    
-    return df
+        .login-container button {
+            width: 100%;
+            padding: 12px;
+            margin-top: 16px;
+            border: none;
+            border-radius: 6px;
+            background-color: #ff6b6b; /* cor do botão */
+            color: #fff;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
 
+        .login-container button:hover {
+            background-color: #ff5252;
+        }
 
-if "alunos" not in st.session_state:
-    st.session_state.alunos = gerar_alunos()
+        /* Mensagem de erro */
+        .error {
+            color: #ff4c4c;
+            margin-top: 10px;
+            font-size: 14px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <img src="logo.png" alt="Logo"> <!-- coloque sua logo aqui -->
+        <h2>Login</h2>
+        <input type="text" id="username" placeholder="Usuário">
+        <input type="password" id="password" placeholder="Senha">
+        <button onclick="login()">Entrar</button>
+        <div class="error" id="errorMsg">Usuário ou senha incorretos</div>
+    </div>
 
-# ---------------------------
-# LOGIN
-# ---------------------------
+    <script>
+        function login() {
+            const user = document.getElementById('username').value;
+            const pass = document.getElementById('password').value;
+            const errorDiv = document.getElementById('errorMsg');
 
-if "logado" not in st.session_state:
-    st.session_state.logado = False
+            // Aqui você pode validar com backend ou dados estáticos
+            if(user === 'admin' && pass === '1234') {
+                alert('Login realizado com sucesso!');
+                errorDiv.style.display = 'none';
+                // redirecionar ou abrir próxima página
+            } else {
+                errorDiv.style.display = 'block';
+            }
+        }
 
-if not st.session_state.logado:
-    st.title("CADEIA DE CUSTÓDIA NA ERA DIGITAL")
-    
-    usuario = st.text_input("Usuário")
-    senha = st.text_input("Senha", type="password")
-    
-    if st.button("ENTRAR"):
-        if usuario and senha:
-            st.session_state.logado = True
-            st.session_state.usuario = usuario
-            st.success("Login realizado com sucesso!")
-            st.rerun()
-        else:
-            st.error("Preencha usuário e senha.")
-else:
-    
-    st.title("UNIVERSIDADE CEARENSE")
-    st.subheader("Direito Processual Penal I – 2026.1")
-    
-    df = st.session_state.alunos
-    
-    aprovados = df[df["STATUS"] == "APROVADO"].shape[0]
-    reprovados = df.shape[0] - aprovados
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.metric("Total de Alunos", df.shape[0])
-        st.metric("Aprovados", aprovados)
-        st.metric("Reprovados", reprovados)
-    
-    with col2:
-        st.bar_chart(df["MF"])
-    
-    st.divider()
-    
-    if st.button("ALUNOS"):
-        st.dataframe(df, use_container_width=True)
-    
-    if st.button("SAIR"):
-        st.session_state.logado = False
-        st.rerun()
+        // Permitir login ao pressionar Enter
+        document.addEventListener('keydown', function(e) {
+            if(e.key === 'Enter') {
+                login();
+            }
+        });
+    </script>
+</body>
+</html>
