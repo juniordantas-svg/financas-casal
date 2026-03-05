@@ -36,13 +36,13 @@ def gerar_alunos():
 # LOGIN ESTILIZADO
 # =============================
 def tela_login():
-    # Fundo colorido e caixa centralizada
+    # Caixa de login centralizada, fundo branco
     html_code = """
     <style>
       body {
         margin:0;
         padding:0;
-        background: linear-gradient(135deg, #4e73df, #1cc88a);
+        background-color:#ffffff;
         height:100vh;
         display:flex;
         justify-content:center;
@@ -50,10 +50,10 @@ def tela_login():
         font-family: Arial, sans-serif;
       }
       .login-box {
-        background-color:#fff;
+        background-color:#f8f9fa;
         padding:50px 40px;
         border-radius:15px;
-        box-shadow:0 8px 25px rgba(0,0,0,0.3);
+        box-shadow:0 8px 25px rgba(0,0,0,0.2);
         width:350px;
         text-align:center;
       }
