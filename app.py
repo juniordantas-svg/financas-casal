@@ -12,14 +12,14 @@ if "logado" not in st.session_state:
     st.session_state.logado = False
 
 # =============================
-# FUNÃ‡ÃƒO DADOS ALUNOS
+# FUNÇÃO DADOS ALUNOS
 # =============================
 def gerar_alunos():
     nomes = [
         "Ana Silva", "Bruno Costa", "Carla Mendes",
         "Daniel Souza", "Eduarda Lima", "Felipe Rocha",
         "Gabriela Alves", "Henrique Martins",
-        "Isabela Ramos", "JoÃ£o Ferreira"
+        "Isabela Ramos", "João Ferreira"
     ]
     dados = []
     for nome in nomes:
@@ -28,18 +28,18 @@ def gerar_alunos():
         media = round((nota1 + nota2)/2,1)
         status = "Aprovado" if media >=6 else "Reprovado"
         dados.append([nome, nota1, nota2, media, status])
-    df = pd.DataFrame(dados, columns=["Aluno","Nota 1","Nota 2","MÃ©dia","Status"])
+    df = pd.DataFrame(dados, columns=["Aluno","Nota 1","Nota 2","Média","Status"])
     return df
 
 # =============================
 # SISTEMA PRINCIPAL
 # =============================
 def tela_sistema():
-    st.title("ðŸ“š Cadeia de CustÃ³dia - Sistema de Notas")
+    st.title("📚 Cadeia de Custódia - Sistema de Notas")
 
     col1, col2 = st.columns([3, 1])
     with col2:
-        if st.button("ðŸšª Sair"):
+        if st.button("🚪 Sair"):
             st.session_state.logado = False
             st.rerun()
 
@@ -47,7 +47,7 @@ def tela_sistema():
 
     df_alunos = gerar_alunos()
 
-    st.subheader("ðŸ“Š Notas dos Alunos")
+    st.subheader("📊 Notas dos Alunos")
     st.dataframe(df_alunos, use_container_width=True)
 
     st.markdown("---")
@@ -63,13 +63,13 @@ def tela_sistema():
         st.metric("Reprovados", reprovados)
 
 # =============================
-# LOGIN ESTILIZADO - DESIGN AZUL COM ILUSTRAÃ‡ÃƒO
+# LOGIN ESTILIZADO - DESIGN AZUL COM ILUSTRAÇÃO
 # =============================
 def tela_login():
     # CSS Personalizado - Baseado na imagem fornecida
     st.markdown("""
     <style>
-        /* Remover padding padrÃ£o do Streamlit */
+        /* Remover padding padrão do Streamlit */
         .block-container {
             padding: 0 !important;
             max-width: 100% !important;
@@ -115,7 +115,7 @@ def tela_login():
             font-size: 13px;
         }
 
-        /* BotÃ£o de login - verde */
+        /* Botão de login - verde */
         .stButton > button {
             width: 100%;
             padding: 15px;
@@ -176,7 +176,7 @@ def tela_login():
         </div>
         """, unsafe_allow_html=True)
 
-        # FormulÃ¡rio dentro do painel azul
+        # Formulário dentro do painel azul
         st.markdown('<div style="margin-top: -580px; padding: 0 40px;">', unsafe_allow_html=True)
 
         with st.form("login_form", clear_on_submit=False):
@@ -206,15 +206,15 @@ def tela_login():
             if submit:
                 if usuario == "dantas" and senha == "1234":
                     st.session_state.logado = True
-                    st.success("âœ… Login realizado com sucesso!")
+                    st.success("✅ Login realizado com sucesso!")
                     st.balloons()
                     st.rerun()
                 else:
-                    st.error("âŒ UsuÃ¡rio ou senha invÃ¡lidos")
+                    st.error("❌ Usuário ou senha inválidos")
 
         st.markdown('</div>', unsafe_allow_html=True)
 
-    # ========== COLUNA DIREITA - ILUSTRAÃ‡ÃƒO ==========
+    # ========== COLUNA DIREITA - ILUSTRAÇÃO ==========
     with col2:
         st.markdown("""
         <div style="
@@ -228,7 +228,7 @@ def tela_login():
         ">
             <div style="text-align: center; position: relative; z-index: 2;">
                 <svg width="400" height="400" viewBox="0 0 400 400" style="max-width: 100%;">
-                    <!-- AviÃ£o de papel -->
+                    <!-- Avião de papel -->
                     <path d="M 320 40 L 360 60 L 340 70 Z" fill="#00B4DB" opacity="0.8">
                         <animateTransform attributeName="transform" type="translate"
                             values="0,0; 50,-20; 0,0" dur="4s" repeatCount="indefinite"/>
@@ -242,7 +242,7 @@ def tela_login():
                     <!-- Tela do celular -->
                     <rect x="170" y="100" width="100" height="180" rx="8" fill="white"/>
 
-                    <!-- Ãcone de usuÃ¡rio -->
+                    <!-- Ícone de usuário -->
                     <circle cx="220" cy="140" r="20" fill="#00B4DB"/>
                     <circle cx="220" cy="135" r="8" fill="white"/>
                     <path d="M 210 145 Q 220 150 230 145" stroke="white" stroke-width="3" fill="none"/>
@@ -251,17 +251,17 @@ def tela_login():
                     <rect x="180" y="170" width="80" height="8" rx="4" fill="#00B4DB" opacity="0.6"/>
                     <rect x="180" y="185" width="80" height="8" rx="4" fill="#FF6B6B" opacity="0.6"/>
 
-                    <!-- BotÃ£o no celular -->
+                    <!-- Botão no celular -->
                     <rect x="185" y="205" width="70" height="25" rx="12" fill="#00C851"/>
 
-                    <!-- Pessoa Ã  esquerda (mulher) -->
+                    <!-- Pessoa à esquerda (mulher) -->
                     <ellipse cx="120" cy="200" rx="15" ry="20" fill="#2C3E50"/>
                     <circle cx="120" cy="185" r="12" fill="#F4A460"/>
                     <rect x="110" y="220" width="20" height="80" rx="5" fill="#00C851"/>
                     <rect x="105" y="235" width="10" height="50" rx="3" fill="#F4A460"/>
                     <rect x="125" y="235" width="10" height="50" rx="3" fill="#F4A460"/>
 
-                    <!-- Pessoa Ã  direita (homem sentado) -->
+                    <!-- Pessoa à direita (homem sentado) -->
                     <circle cx="340" cy="280" r="15" fill="#F4A460"/>
                     <rect x="320" y="295" width="40" height="50" rx="8" fill="#0083B0"/>
                     <rect x="315" y="310" width="20" height="40" rx="4" fill="#F4A460"/>
