@@ -37,14 +37,14 @@ def tela_sistema():
     df_alunos = gerar_alunos()
     st.subheader("📊 Notas dos Alunos")
 
-    # Use data_editor para permitir edição
+    # Apenas colunas "Aluno", "Nota 1" e "Nota 2" são editáveis
     df_editavel = st.data_editor(
-        df_alunos,
-        num_rows="dynamic",  # permite alterar número de linhas se quiser
+        df_alunos[["Aluno","Nota 1","Nota 2"]],
+        num_rows="dynamic",
         use_container_width=True
     )
 
-    # Recalcular status automaticamente após edição
+    # Recalcular automaticamente Média e Status
     df_editavel["Média"] = ((df_editavel["Nota 1"] + df_editavel["Nota 2"]) / 2).round(1)
     df_editavel["Status"] = df_editavel["Média"].apply(lambda x: "Aprovado" if x >= 6 else "Reprovado")
 
