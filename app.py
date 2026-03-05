@@ -56,7 +56,7 @@ def tela_login():
         footer {visibility: hidden;}
         #MainMenu {visibility: hidden;}
         .stApp {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: white;
         }
         .block-container {
             display: flex;
@@ -102,7 +102,7 @@ def tela_login():
 
     with col2:
         st.markdown('<div style="background: white; padding: 40px; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); margin-top: 50px;">', unsafe_allow_html=True)
-        
+
         st.markdown('<h2 style="text-align: center; color: #333; margin-bottom: 10px;">Portal Universitas</h2>', unsafe_allow_html=True)
         st.markdown('<p style="text-align: center; color: #666; font-size: 14px; margin-bottom: 30px;">Acesso exclusivo para alunos, professores e coordenadores</p>', unsafe_allow_html=True)
 
@@ -118,10 +118,10 @@ def tela_login():
             )
 
             col_mat, col_senha = st.columns(2)
-            
+
             with col_mat:
                 matricula = st.text_input("Matrícula", placeholder="Informe a matrícula")
-            
+
             with col_senha:
                 senha = st.text_input("Senha", type="password", placeholder="Informe a senha")
 
@@ -138,10 +138,10 @@ def tela_login():
                     st.error("❌ Matrícula ou senha inválidos")
 
         st.markdown('<p style="text-align: center; color: #666; font-size: 13px; margin-top: 20px;">Deseja trocar a senha? <a href="#" style="color: #0d6efd;">Trocar senha</a></p>', unsafe_allow_html=True)
-        
+
         st.markdown('</div>', unsafe_allow_html=True)
-        
-        st.markdown('<p style="text-align: center; color: white; font-size: 12px; margin-top: 30px;">© 2026. Todos os direitos reservados. Portal Universitas</p>', unsafe_allow_html=True)
+
+        st.markdown('<p style="text-align: center; color: #333; font-size: 12px; margin-top: 30px;">© 2026. Todos os direitos reservados. Portal Universitas</p>', unsafe_allow_html=True)
 
 if not st.session_state.logado:
     tela_login()
