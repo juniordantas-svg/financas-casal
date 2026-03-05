@@ -25,39 +25,70 @@ def gerar_alunos():
     return df
 
 def tela_sistema():
-    st.title("📚 Cadeia de Custódia - Sistema de Notas")
 
-    col1, col2 = st.columns([3, 1])
+    st.title("📊 Dashboard Acadêmico")
+
+    col1, col2 = st.columns([9,1])
     with col2:
-        if st.button("🚪 Sair"):
+        if st.button("Sair"):
             st.session_state.logado = False
             st.rerun()
 
     st.markdown("---")
-    df_alunos = gerar_alunos()
-    st.subheader("📊 Notas dos Alunos")
 
-    # Apenas colunas "Aluno", "Nota 1" e "Nota 2" são editáveis
-    df_editavel = st.data_editor(
-        df_alunos[["Aluno","Nota 1","Nota 2"]],
-        num_rows="dynamic",
-        use_container_width=True
+    # Gerar dados apenas uma vez
+    if "df_alunos" not in st.session_state:
+        st.session_state.df_alunos = gerar_alunos()
+
+    df = st.session_state.df_alunos
+
+    st.subheader("Lista de Alunos (Edite as notas)")
+
+    # Editor de dados
+    df_editado = st.data_editor(
+        df,
+        use_container_width=True,
+        disabled=["Aluno", "Média", "Status"],
+        num_rows="fixed"
     )
 
-    # Recalcular automaticamente Média e Status
-    df_editavel["Média"] = ((df_editavel["Nota 1"] + df_editavel["Nota 2"]) / 2).round(1)
-    df_editavel["Status"] = df_editavel["Média"].apply(lambda x: "Aprovado" if x >= 6 else "Reprovado")
+    # Recalcular média e status
+    df_editado["Média"] = round(
+        (df_editado["Nota 1"] + df_editado["Nota 2"]) / 2, 1
+    )
+
+    df_editado["Status"] = df_editado["Média"].apply(
+        lambda x: "Aprovado" if x >= 6 else "Reprovado"
+    )
+
+    # Salvar novamente
+    st.session_state.df_alunos = df_editado
 
     st.markdown("---")
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric("Total de Alunos", len(df_editavel))
-    with col2:
-        aprovados = len(df_editavel[df_editavel["Status"] == "Aprovado"])
-        st.metric("Aprovados", aprovados)
-    with col3:
-        reprovados = len(df_editavel[df_editavel["Status"] == "Reprovado"])
-        st.metric("Reprovados", reprovados)
+
+    # MÉTRICAS
+    total_alunos = len(df_editado)
+    aprovados = len(df_editado[df_editado["Status"] == "Aprovado"])
+    reprovados = len(df_editado[df_editado["Status"] == "Reprovado"])
+    media_geral = round(df_editado["Média"].mean(), 2)
+
+    col1, col2, col3, col4 = st.columns(4)
+
+    col1.metric("Total de Alunos", total_alunos)
+    col2.metric("Aprovados", aprovados)
+    col3.metric("Reprovados", reprovados)
+    col4.metric("Média Geral", media_geral)
+
+    st.markdown("---")
+
+    # GRÁFICO STATUS
+    st.subheader("Distribuição Aprovados x Reprovados")
+    st.bar_chart(df_editado["Status"].value_counts())
+
+    # GRÁFICO MÉDIAS
+    st.subheader("Média por Aluno")
+    st.bar_chart(df_editado.set_index("Aluno")["Média"])
+
 
 def tela_login():
     st.markdown("""
