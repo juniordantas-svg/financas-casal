@@ -42,7 +42,7 @@ def tela_sistema():
 
     df = st.session_state.df_alunos
 
-    st.subheader("Lista de Alunos (notas)")
+    st.subheader("Alunos (notas)")
 
     # Editor de dados
     df_editado = st.data_editor(
