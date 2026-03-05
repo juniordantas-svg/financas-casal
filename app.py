@@ -56,7 +56,7 @@ def tela_login():
         footer {visibility: hidden;}
         #MainMenu {visibility: hidden;}
         .stApp {
-            background: white;
+            background: none;
         }
         .block-container {
             display: flex;
@@ -101,7 +101,7 @@ def tela_login():
     col1, col2, col3 = st.columns([1, 2, 1])
 
     with col2:
-        st.markdown('<div style="background: white; padding: 40px; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); margin-top: 50px;">', unsafe_allow_html=True)
+        st.markdown('<div style="margin-top: 50px;">', unsafe_allow_html=True)
 
         st.markdown('<h2 style="text-align: center; color: #333; margin-bottom: 10px;">Portal Universitas</h2>', unsafe_allow_html=True)
         st.markdown('<p style="text-align: center; color: #666; font-size: 14px; margin-bottom: 30px;">Acesso exclusivo para alunos, professores e coordenadores</p>', unsafe_allow_html=True)
